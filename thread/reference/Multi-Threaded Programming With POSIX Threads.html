@@ -1,0 +1,475 @@
+<html>
+<head>
+<title>Multi-Threaded Programming With POSIX Threads</title>
+</head>
+
+
+<h1><a href="http://www.tutorialspoint.com/cplusplus/cpp_multithreading.htm">POSIX Threads</a></h1>
+
+<ol>
+<li> <a href="#preface">Threads are fun !</a>
+<li> <a href="#definition">What are threads?</a>
+<li> <a href="#pthreads-definition">What are pthreads?</a>
+<li> <a href="#threads-processes">Threads are efficient ...</a>
+<li> <a href="#applications">Threads are useful - example applications</a>
+<li> <a href="#thread_create_stop">Creating and destroying threads</a>
+<li> <a href="#exercise_1">Activities</a>
+&nbsp;&nbsp<a href="#exercise_1">1</a>
+&nbsp;&nbsp<a href="#exercise_2">2</a>
+&nbsp;&nbsp<a href="#exercise_3">3</a>
+&nbsp;&nbsp<a href="#exercise_4">4</a>
+&nbsp;&nbsp<a href="#exercise_5">5</a>
+	<ul>
+     	<li> <a href="#exercise_2">about <code>pthread_self</code>...</a>
+     	<li> <a href="#exercise_4">about <code>pthread_join</code>...</a>
+	</ul>
+</ol>
+</p>
+
+<hr size=4>
+
+<a name="preface">
+<font color=brown><h2>Threads are fun !</h2></font>
+</a>
+<p>
+Knowing how to properly use threads should be part of every computer science 
+and engineering student repertoire.
+This tutorial is an attempt to help you become familiar with multi-threaded
+programming with the POSIX (Portable Operating System Interface) threads, or 
+pthreads. This tutorial explains the
+different tools defined by the pthread library, shows how to use them, and 
+gives examples of using them to solve real life programming problems. 
+</p>
+
+<hr size=4>
+
+<a name="definition">
+<font color=brown><h2>What are threads?</h2></font>
+</a>
+<p>Technically, a thread is defined as an independent stream of instructions that can 
+be scheduled to run as such by the operating system.  
+<p>
+A thread is a semi-process that has its own stack, and executes a given
+piece of code. Unlike a real process, the thread normally shares its memory
+with other threads (where as for processes we usually have a different memory
+area for each one of them). A Thread Group is a set of threads all executing
+inside the same process. They all share the same memory, and thus can access
+the same global variables, same heap memory, same set of file descriptors,
+etc. All these threads execute in parallel (i.e. using time slices, or if
+the system has several processors, then really in parallel).
+</p>
+
+<img src= "./thread.jpg">
+<P>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+<B>Single- and Multi-Threaded Processes</B> 
+
+<hr size=4>
+<a name="pthreads-definition">
+<font color=brown><h2>What are pthreads?</h2></font>
+
+Historically, hardware vendors have implemented their own proprietary versions of threads. 
+These implementations differed substantially from each other, making it difficult for programmers 
+to develop portable threaded applications. 
+
+<p>
+In order to take full advantage of the capabilities provided by threads, a standardized 
+programming interface was required. For UNIX systems, this interface has been specified by 
+the IEEE POSIX 1003.1c standard (1995). Implementations which adhere to this standard are 
+referred to as POSIX threads, or Pthreads. Most hardware vendors now offer Pthreads in 
+addition to their proprietary threads. 
+
+<hr size=4>
+<A NAME="threads-processes">
+<font color=brown><h2>Threads are efficient ...</h2></font>
+<P>
+If implemented correctly, threads have some advantages over processes. 
+Compared to the standard fork(), threads carry a lot less overhead. 
+
+<p>
+Remember that fork() produces a second copy of the calling process. 
+The parent and the child are <B><I>completely independent</I></B>, each 
+with its own address space, with its own copies 
+of its variables, which are completely independent of the same variables 
+in the other process. 
+
+<P>Threads share a common address space, thereby avoiding a lot of the 
+inefficiencies of multiple processes.
+
+<P><UL>
+<LI> The kernel does not need to make a new independent copy of the process 
+memory space, file descriptors, etc. 
+This saves a lot of CPU time, making thread creation ten to a hundred times 
+faster than a new process creation. Because of this, you can use a whole bunch 
+of threads and not worry about the CPU and memory overhead incurred. This means 
+you can generally create threads whenever it makes sense in your program.
+<LI> Less time to terminate a thread than a process.
+<LI> Context switching between threads is much faster then context switching
+between processes (context switching means that the system switches from
+running one thread or process, to running another thread or process)
+<LI> Less communication overheads -- communicating between the threads of one process 
+is simple because the threads share the address space. 
+Data produced by one thread is immediately available to all the other
+threads.
+</UL>
+</p>
+
+<p>
+On the other hand, because threads in a group all use the same memory space,
+if one of them corrupts the contents of its memory, other threads might
+suffer as well. With processes, the operating system normally protects
+processes from one another, and thus if one corrupts its own memory space,
+other processes won't suffer. 
+</p>
+
+<hr size=4>
+
+<A NAME="applications">
+<font color=brown><h2>Threads are useful - example applications</A></h2></font>
+<p>
+
+<P>
+<B>Example 1: A responsive user interface</B>
+<p>
+One area in which threads can be very helpful is in user-interface programs.
+These programs are usually centered around a loop of reading user input,
+processing it, and showing the results of the processing. The processing part
+may sometimes take a while to complete, and the user is made to wait during
+this operation. By placing such long operations in a separate thread, while
+having another thread to read user input, the program can be more responsive.
+It may allow the user to cancel the operation in the middle.
+</p>
+
+<P>
+<B>Example 2: A graphical interface</B>
+<p>
+In graphical programs the problem is more severe, since the application
+should always be ready for a message from the windowing system telling it
+to repaint part of its window. If it's too busy executing some other
+task, its window will remain blank, which is rather ugly. In such a case,
+it is a good idea to have one thread handle the message loop of the windowing
+systm and always ready to get such repain requests (as well as user input).
+Whenever this thread sees a need to do an operation that might take a long
+time to complete (say, more then 0.2 seconds in the worse case), it will
+delegate the job to a separate thread.
+
+<P>
+<B>Example 3 : A Web server </B>
+<P><UL>
+<LI> It needs to handle several download requests over a short period
+<LI> Hence more efficient to create (and destroy) a single thread for each request
+<LI> Multiple threads can possibly be executing simultaneously on different processors
+</UL>
+
+<hr size=4>
+<a name="thread_create_stop">
+<font color=brown><h2>Creating and destroying threads</h2></font>
+</a>
+<p>
+When a multi-threaded program starts executing, it has one thread running,
+which executes the main() function of the program. This is already a
+full-fledged thread, with its own thread ID. In order to create a new thread,
+the program should use the 
+<font color=blue><code>
+<a href="http://pubs.opengroup.org/onlinepubs/007908775/xsh/pthread_create.html">pthread_create()</a></code></font> function. 
+Here is how to use it:
+</p>
+
+<hr width=40%>
+<pre><code>
+#include &lt;stdio.h&gt;       <font color=brown>/* standard I/O routines                 */</font>
+#include &lt;pthread.h&gt;     <font color=brown>/* pthread functions and data structures */</font>
+
+<font color=brown>/* function to be executed by the new thread */</font>
+void* PrintHello(void* data)
+{
+    int my_data = (int)data;     	<font color=brown>/* data received by thread */</font>
+
+    <a href="http://pubs.opengroup.org/onlinepubs/009695399/functions/pthread_detach.html">pthread_detach</a>(<a href="http://pubs.opengroup.org/onlinepubs/009695399/functions/pthread_self.html">pthread_self</a>());
+    printf("Hello from new thread - got %d\n", my_data);
+    <a href="http://pubs.opengroup.org/onlinepubs/007908775/xsh/pthread_exit.html">pthread_exit</a>(NULL);			<font color=brown>/* terminate the thread */</font>
+}
+
+<font color=brown>/* like any C program, program's execution begins in main */</font>
+int main(int argc, char* argv[])
+{
+    int        rc;         	<font color=brown>/* return value                           */</font>
+    pthread_t  thread_id;     	<font color=brown>/* thread's ID (just an integer)          */</font>
+    int        t         = 11;  <font color=brown>/* data passed to the new thread          */</font>
+
+    <font color=brown>/* create a new thread that will execute 'PrintHello' */</font>
+    rc = <a href="http://pubs.opengroup.org/onlinepubs/007908775/xsh/pthread_create.html">pthread_create</a>(&amp;thread_id, NULL, PrintHello, (void*)t);  
+    if(rc)			<font color=brown>/* could not create thread */</font>
+    {
+        printf("\n ERROR: return code from pthread_create is %d \n", rc);
+        exit(1);
+    }
+    printf("\n Created new thread (%u) ... \n", thread_id);
+    
+    <a href="http://pubs.opengroup.org/onlinepubs/007908775/xsh/pthread_exit.html">pthread_exit</a>(NULL);		<font color=brown>/* terminate the thread */</font>
+}
+</code></pre>
+<hr width=40%>
+
+<p>
+Understanding the simple threaded program above.
+While it does not do anything useful, it will help you understand how threads work. Let us 
+take a step by step look at what the program does. 
+<ol>
+<li> In <code>main()</code> we declare a variable called 
+     <font color = blue><code>thread_id</code></font>, which 
+     is of type <font color = blue><code>pthread_t</code></font>. 
+     This is basically an integer used to identify the 
+     thread in the system.
+     After declaring <code>thread_id</code>, we call the <code><a href="http://pubs.opengroup.org/onlinepubs/007908775/xsh/pthread_create.html">pthread_create</a></code>
+     function to create a real, living thread.
+<p>
+<li> <font color = blue><code><a href="http://pubs.opengroup.org/onlinepubs/007908775/xsh/pthread_create.html">pthread_create()</a></code></font> 
+     gets 4 arguments The first argument is
+     a pointer to <code>thread_id</code>, used by <code>pthread_create()</code> 
+     to supply the program with the thread's identifier. 
+     The second argument is used to set some
+     attributes for the new thread. In our case we supplied a NULL pointer to
+     tell <code>pthread_create()</code> to use the default values. 
+     Notice that <code>PrintHello()</code> accepts a void * as an argument and 
+     also returns a void * as a return value. This shows us that it is possible 
+     to use a void * to pass an arbitrary piece of data to our new thread, and 
+     that our new thread can return an arbitrary piece of data when it finishes. 
+     How do we pass our thread an arbitrary argument? Easy. We use the fourth 
+     argument to the <code>pthread_create()</code> call. If we do not want 
+     to pass any data to the new thread, we set the fourth argument to NULL.
+     <code>pthread_create()</code> returns zero on success and a non-zero value 
+     on failure.
+
+<p>
+<li> After <code>pthread_create()</code> successfully returns, the program will consist of 
+     <font color = "blue">two threads</font>. This is because the main program 
+     is also a thread and it executes the code in the
+     <code>main()</code> function in parallel to the thread it creates.
+     Think of it this way: if you write a program that does not use POSIX threads 
+     at all, the program will be single-threaded (this single thread is called 
+     the "main" thread). 
+
+<p>
+<li> The call to <font color = blue><code><a href="http://pubs.opengroup.org/onlinepubs/007908775/xsh/pthread_exit.html">pthread_exit</a></code></font> causes the current thread
+     to exit and free any thread-specific resources it is taking. 
+</ol>
+</p>
+
+<p>
+In order to compile a multi-threaded program using <code><u>gcc</u></code>,
+we need to link it with the pthreads library. Assuming you have this library
+already installed on your system, here is how to compile our first program:
+<font color = blue>
+<pre><code>      gcc hello.c -o hello -lpthread
+</code></pre>
+</font>
+The source code for this program may be found in the
+<a href="./hello.txt">hello.c</a> file.
+</p>
+
+<hr size=4>
+
+<a name="exercise_1">
+<font color=brown><u>Activity 1</u></font>. Create a directory called 
+<code>pthreads</code> in your Unix directory and copy and paste the code for 
+<a href="./hello.txt">hello.c</a> 
+into the <code>pthreads</code> directory. Compile the source code and ignore the casting warnings (the casts from <tt>int</tt> to <tt>void*</tt> and back to <tt>int</tt> are intentional here, and are used to pass an integer value to the thread function defined with a <tt>void *</tt> argument). 
+
+<p>
+Run the 
+ <code>hello</code> executable. The ouput should be similar to
+<font color = blue>
+<pre><code>      Created new thread (4) ...
+      Hello from new thread - got 11
+</code></pre>
+</font> 
+
+<hr>
+
+<a name="exercise_2">
+<font color=brown><u>Activity 2</u></font>. A thread can get its own thread id 
+by calling 
+<code><a href="http://pubs.opengroup.org/onlinepubs/009695399/functions/pthread_self.html">pthread_self</a>()</code>, which returns the thread id:
+<font color = blue>
+<pre><code>      pthread_t <a href="http://pubs.opengroup.org/onlinepubs/009695399/functions/pthread_self.html">pthread_self</a>();
+</code></pre></font> 
+
+Use it as
+<font color = blue>
+<pre><code>      pthread_t tid;
+      tid = pthread_self();
+</code></pre></font>
+
+Modify the code for <code>hello.c</code> to print out the thread id for both 
+threads. Make sure to use the format specifier <tt>%u</tt> (unsigned) to print out 
+the thread identifier. On Linux machines the thread identifiers are usually very large values that appear 
+to be negative if not interpreted as unsigned integers. 
+
+<p>
+Recompile and run the <code>hello</code> executable. 
+The new ouput should be similar to
+<font color = blue>
+<pre><code>      I am thread 1. Created new thread (4) ...
+      Hello from new thread 4 - got 11
+</code></pre>
+</font> 
+
+If you run your code on a Linux machine, the identifier of the new thread will be a very large integer rather than 4 (as shown here). 
+
+<p>
+Now modify the code so that the main thread passes its own thread id to the 
+new thread it creates. Recompile and run the <code>hello</code> executable. 
+The ouput should be similar to
+<font color = blue>
+<pre><code>      I am thread 1. Created new thread (4) ...
+      Hello from new thread 4 - got 1
+</code></pre>
+</font> 
+
+<hr>
+
+<a name="exercise_3">
+<font color=brown><u>Activity 3</u></font>. There are several ways for threads 
+to terminate. One way to safely terminate is to call the 
+<code><a href="http://pubs.opengroup.org/onlinepubs/007908775/xsh/pthread_exit.html">pthread_exit</a></code> routine (the equivalent of <code>exit</code> for processeas). In this activity, 
+modify your <code>hello.c</code> program as follows.
+<ul>
+<li>
+In the <code>PrintHello</code> routine, add the line 
+<pre>    sleep(1);
+</pre>
+before the <code>printf</code> call. This causes the calling thread to sleep for 1 second and then resume execution (we are trying to make this thread finish after the main thread). 
+
+<p>
+Use the Unix manual pages to find out what header files are needed for the <tt>sleep</tt> function (try manual entries 2, 3, etc. until you find the definition you need). 
+
+<p><li>
+In the <tt>main</tt> function, comment out the last statement line which contains 
+the <code>pthread_exit</code> call. 
+</ul>
+Recompile and run the <code>hello</code>
+executable. 
+
+<p>
+<b>What happens? Why?</b>
+
+
+<p>Next, add the <code>pthread_exit</code> call back in the main program, but remove 
+it from the <code>PrintHello</code> routine. Also add the <code>sleep</code> call 
+to the main routine, just before the second <code>printf</code> call, and remove 
+it from the <code>PrintHello</code> routine (so now the main thread finishes last). Recompile and run the <code>hello</code>
+executable. 
+
+<p>
+<b>What happens? Why?</b>
+<p>
+<font color = brown>
+<I>It is necessary to use <code>pthread_exit</code> at the end of the main program.
+Otherwise, when it exits, all running threads will be killed.</I></font>
+<p>
+<hr>
+<a name="exercise_4">
+<font color=brown><u>Activity 4</u></font>. The <font color=blue><code><a href="http://pubs.opengroup.org/onlinepubs/009695399/functions/pthread_join.html">pthread_join</a>()</code></font> 
+function for threads is the equivalent of <code>wait</code> for processes. 
+A call to <font color = blue><code><a href="http://pubs.opengroup.org/onlinepubs/009695399/functions/pthread_join.html">pthread_join</a></font></code> 
+blocks the calling thread until the thread with identifier equal to the first 
+argument terminates.
+
+<p>
+<pre><code>#include &lt;stdio.h&gt;       <font color=brown>/* standard I/O routines                 */</font>
+#include &lt;pthread.h&gt;     <font color=brown>/* pthread functions and data structures */</font>
+
+void* PrintHello(void* data)
+{
+    pthread_t tid = (pthread_t)data;    <font color=brown>/* data received by thread */</font>
+
+    <font color=blue><a href="http://pubs.opengroup.org/onlinepubs/009695399/functions/pthread_join.html">pthread_join</a>(tid, NULL);</font>            <font color=brown>/* wait for thread tid     */</font>
+    printf("Hello from new thread %u - got %u\n", <a href="http://pubs.opengroup.org/onlinepubs/009695399/functions/pthread_self.html">pthread_self()</a>, data);
+    <a href="http://pubs.opengroup.org/onlinepubs/007908775/xsh/pthread_exit.html">pthread_exit</a>(NULL);	                <font color=brown>/* terminate the thread    */</font>
+}
+
+<font color=brown>/* like any C program, program's execution begins in main */</font>
+int main(int argc, char* argv[])
+{
+    int        rc;         	       <font color=brown>/* return value                  */</font>
+    pthread_t  thread_id;     	       <font color=brown>/* thread's ID (just an integer) */</font>
+    int        tid;
+
+    tid = <a href="http://pubs.opengroup.org/onlinepubs/009695399/functions/pthread_self.html">pthread_self</a>();
+
+    rc = <a href="http://pubs.opengroup.org/onlinepubs/007908775/xsh/pthread_create.html">pthread_create</a>(&amp;thread_id, NULL, PrintHello, (void*)tid);  
+    if(rc)                             <font color=brown>/* could not create thread */</font>
+    {
+        printf("\n ERROR: return code from pthread_create is %d \n", rc);
+        exit(1);
+    }
+    sleep(1);
+    printf("\n Created new thread (%u) ... \n", thread_id);
+    <a href="http://pubs.opengroup.org/onlinepubs/007908775/xsh/pthread_exit.html">pthread_exit</a>(NULL);		
+}</pre></code>
+
+
+The first argument to <code>pthread_join()</code> is the identifier of the thread to join. 
+The second argument is a void pointer. 
+
+<font color = blue>
+<pre><code>      <a href="http://pubs.opengroup.org/onlinepubs/009695399/functions/pthread_join.html">pthread_join</a>(pthread_t tid, void * return_value);
+</code></pre>
+</font> 
+
+If the <code>return_value</code> pointer is non-NULL, <code>pthread_join</code> will place 
+at the memory location pointed to by <code>return_value</code>, 
+the value passed by the thread <code>tid</code> through the <code>pthread_exit</code> call.
+Since we don't care about return value of the main thread, we set it to NULL.
+
+<p> Recompile and run the executable for the above code. Is the otuput what you expected?
+
+<p><hr>
+<p> Note. At any point in time, a thread is either joinable or detached (default state is joinable). 
+<i>Joinable</i> threads must be 
+reaped or killed by other threads (using <code>pthread_join</code>) in order to free memory resources. 
+<i>Detached</i> threads cannot be reaped or killed by other threads, and resources are automatically 
+reaped on termination. So unless threads need to synchronize among themselves, it is 
+better to call
+<font color = blue>
+<pre><code>      <a href="http://pubs.opengroup.org/onlinepubs/009695399/functions/pthread_detach.html">pthread_detach</a>(pthread_self());
+</code></pre>
+</font>
+instead of <code>pthread_join</code>. 
+ <p>
+<hr>
+<a name="exercise_5">
+<font color=brown><u>Activity 5</u></font>. Write a program <code>hellomany.c</code> 
+that will create a number N of threads specified in the command line, each of which 
+prints out a hello message and its own thread ID. To see how the execution of the 
+threads interleaves, make the main thread sleep for 1 second for every 4 or 5 threads 
+it creates. The output of your code should be similar to:
+
+<font color = blue>
+<pre><code>       I am thread 1. Created new thread (4) in iteration 0...
+       Hello from thread 4 - I was created in iteration 0
+       I am thread 1. Created new thread (6) in iteration 1...
+       I am thread 1. Created new thread (7) in iteration 2...
+       I am thread 1. Created new thread (8) in iteration 3...
+       I am thread 1. Created new thread (9) in iteration 4...
+       I am thread 1. Created new thread (10) in iteration 5...
+       Hello from thread 6 - I was created in iteration 1
+       Hello from thread 7 - I was created in iteration 2
+       Hello from thread 8 - I was created in iteration 3
+       Hello from thread 9 - I was created in iteration 4
+       Hello from thread 10 - I was created in iteration 5
+       I am thread 1. Created new thread (11) in iteration 6...
+       I am thread 1. Created new thread (12) in iteration 7...
+       Hello from thread 11 - I was created in iteration 6
+       Hello from thread 12 - I was created in iteration 7</code></pre></font> 
+
+Do not look at the <a href="./hellomany.txt">solution</a>. Try it on your 
+own first.
+
+<hr size=4>
+<p>More examples using the <code>pthread</code> library can be found 
+<a href="http://www.tutorialspoint.com/cplusplus/cpp_multithreading.htm">here</a>. 
+
+</body>
+
+</html>
